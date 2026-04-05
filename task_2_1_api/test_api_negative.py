@@ -2,7 +2,6 @@
 
 import allure
 import pytest
-from api_client import APIClient
 
 
 @allure.title("TC-010: Создание без sellerID")
