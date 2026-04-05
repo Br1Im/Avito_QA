@@ -36,10 +36,20 @@ class APIClient:
         """Получить статистику v2. GET /api/2/statistic/:id"""
         return self.session.get(f"{self.base_url}/api/2/statistic/{item_id}")
 
-    def create_test_item(self, seller_id=111111, name="Тест", price=1000, statistics=None):
-        """Создать тестовое объявление с дефолтными значениями."""
+    @staticmethod
+    def extract_id(response):
+        """Извлечь UUID из ответа создания. POST возвращает status: 'Создано - UUID'"""
+        data = response.json()
+        status_str = data.get("status", "")
+        if " - " in status_str:
+            return status_str.split(" - ", 1)[1].strip()
+        return None
+
+    def create_test_item(self, seller_id=111111, name="Test", price=1000, statistics=None):
+        """Создать тестовое объявление с дефолтными значениями.
+        API требует ненулевую статистику для всех трёх полей."""
         if statistics is None:
-            statistics = {"likes": 0, "viewCount": 0, "contacts": 0}
+            statistics = {"likes": 10, "viewCount": 50, "contacts": 5}
         body = {
             "sellerID": seller_id,
             "name": name,

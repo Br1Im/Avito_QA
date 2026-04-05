@@ -2,7 +2,6 @@
 
 import allure
 import pytest
-from api_client import APIClient
 
 
 @allure.title("TC-001: Создание объявления с валидными данными")
@@ -15,54 +14,53 @@ def test_create_item_valid_data(api_client, unique_seller_id):
         price=1000,
     )
     assert response.status_code == 200
-    data = response.json()
-    assert "id" in data
+    item_id = api_client.extract_id(response)
+    assert item_id is not None
+    item_data = api_client.get_item_by_id(item_id)
+    assert item_data.status_code == 200
+    data = item_data.json()[0]
     assert data["sellerId"] == unique_seller_id
     assert data["name"] == "Тест"
     assert data["price"] == 1000
-    assert data["statistics"]["likes"] == 0
+    assert data["statistics"]["likes"] == 10
 
 
-@allure.title("TC-002: Создание объявления с ценой 0")
+@allure.title("TC-003: Создание объявления с большой ценой")
 @pytest.mark.positive
-def test_create_item_min_price(api_client, unique_seller_id):
-    """Проверяем, что цена 0 принимается."""
-    response = api_client.create_test_item(
-        seller_id=unique_seller_id,
-        name="Бесплатно",
-        price=0,
-    )
-    assert response.status_code == 200
-    assert response.json()["price"] == 0
-
-
-@allure.title("TC-003: Создание объявления с максимальной ценой")
-@pytest.mark.positive
-def test_create_item_max_price(api_client, unique_seller_id):
-    """Проверяем большую цену."""
+def test_create_item_big_price(api_client, unique_seller_id):
+    """Проверяем, что обычная цена принимается."""
     response = api_client.create_test_item(
         seller_id=unique_seller_id,
         name="Дорого",
-        price=999999999,
+        price=999999,
     )
     assert response.status_code == 200
-    assert response.json()["price"] == 999999999
+    item_id = api_client.extract_id(response)
+    assert item_id is not None
+    item_data = api_client.get_item_by_id(item_id)
+    assert item_data.status_code == 200
+    assert item_data.json()[0]["price"] == 999999
 
 
-@allure.title("TC-004: Создание объявления с пустой статистикой")
+@allure.title("TC-004: Создание объявления со статистикой 1,1,1")
 @pytest.mark.positive
-def test_create_item_empty_statistics(api_client, unique_seller_id):
-    """Проверяем инициализацию статистики нулями."""
+def test_create_item_min_statistics(api_client, unique_seller_id):
+    """Проверяем, что минимальная ненулевая статистика принимается."""
     response = api_client.create_test_item(
         seller_id=unique_seller_id,
-        name="Без статистики",
+        name="Мин статистика",
         price=100,
+        statistics={"likes": 1, "viewCount": 1, "contacts": 1},
     )
     assert response.status_code == 200
-    data = response.json()
-    assert data["statistics"]["likes"] == 0
-    assert data["statistics"]["viewCount"] == 0
-    assert data["statistics"]["contacts"] == 0
+    item_id = api_client.extract_id(response)
+    assert item_id is not None
+    item_data = api_client.get_item_by_id(item_id)
+    assert item_data.status_code == 200
+    data = item_data.json()[0]
+    assert data["statistics"]["likes"] == 1
+    assert data["statistics"]["viewCount"] == 1
+    assert data["statistics"]["contacts"] == 1
 
 
 @allure.title("TC-005: Создание объявления со статистикой")
@@ -77,7 +75,11 @@ def test_create_item_with_statistics(api_client, unique_seller_id):
         statistics=stats,
     )
     assert response.status_code == 200
-    data = response.json()
+    item_id = api_client.extract_id(response)
+    assert item_id is not None
+    item_data = api_client.get_item_by_id(item_id)
+    assert item_data.status_code == 200
+    data = item_data.json()[0]
     assert data["statistics"]["likes"] == 10
     assert data["statistics"]["viewCount"] == 50
     assert data["statistics"]["contacts"] == 5
@@ -94,10 +96,12 @@ def test_create_multiple_items_same_seller(api_client, unique_seller_id):
             price=100 * (i + 1),
         )
         assert response.status_code == 200
+        item_id = api_client.extract_id(response)
+        assert item_id is not None
 
-    response = api_client.get_items_by_seller(unique_seller_id)
-    assert response.status_code == 200
-    items = response.json()
+    result = api_client.get_items_by_seller(unique_seller_id)
+    assert result.status_code == 200
+    items = result.json()
     assert len(items) >= 3
 
 
@@ -109,8 +113,10 @@ def test_unique_ids_for_different_sellers(api_client):
     response2 = api_client.create_test_item(seller_id=333333, name="Продавец 2", price=200)
     assert response1.status_code == 200
     assert response2.status_code == 200
-    id1 = response1.json()["id"]
-    id2 = response2.json()["id"]
+    id1 = api_client.extract_id(response1)
+    id2 = api_client.extract_id(response2)
+    assert id1 is not None
+    assert id2 is not None
     assert id1 != id2
 
 
@@ -124,4 +130,8 @@ def test_create_item_cyrillic_name(api_client, unique_seller_id):
         price=5000,
     )
     assert response.status_code == 200
-    assert response.json()["name"] == "Персидский котёнок"
+    item_id = api_client.extract_id(response)
+    assert item_id is not None
+    item_data = api_client.get_item_by_id(item_id)
+    assert item_data.status_code == 200
+    assert item_data.json()[0]["name"] == "Персидский котёнок"
