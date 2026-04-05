@@ -1,53 +1,31 @@
-# Задание 2.1: Тесты API
+# API тесты (Задание 2.1)
 
-## Структура
+## Файлы
 
-```
-task_2_1_api/
-├── api_client.py              # API клиент
-├── conftest.py               # Фикстуры pytest
-├── test_api_positive.py      # Позитивные тесты
-├── test_api_negative.py      # Негативные тесты
-├── test_api_e2e.py          # E2E тесты
-├── test_api_nonfunctional.py # Нефункциональные тесты
-└── README.md                 # Этот файл
-```
+- `api_client.py` — обёртка над requests
+- `conftest.py` — фикстуры
+- `test_api_positive.py` — позитивные тесты
+- `test_api_negative.py` — негативные тесты
+- `test_api_e2e.py` — E2E и корнер-кейсы
+- `test_api_nonfunctional.py` — производительность, CORS
 
-## Установка
+## Запуск
 
 ```bash
-pip install -r requirements.txt
+pytest task_2_1_api/ -v
 ```
 
-## Запуск тестов
-
-Все API тесты:
+С маркерами:
 ```bash
-pytest tests/task_2_1_api/ -v
+pytest task_2_1_api/ -m positive -v
+pytest task_2_1_api/ -m negative -v
+pytest task_2_1_api/ -m e2e -v
+pytest task_2_1_api/ -m nonfunctional -v
 ```
 
-По категориям:
-```bash
-pytest tests/task_2_1_api/ -m positive -v
-pytest tests/task_2_1_api/ -m negative -v
-pytest tests/task_2_1_api/ -m e2e -v
-pytest tests/task_2_1_api/ -m corner -v
-pytest tests/task_2_1_api/ -m nonfunctional -v
-```
-
-## С Allure отчётом
+## Allure
 
 ```bash
-pytest tests/task_2_1_api/ --alluredir=task_2_1_api/allure-results
+pytest task_2_1_api/ --alluredir=task_2_1_api/allure-results
 allure serve task_2_1_api/allure-results
-```
-
-## Тест-кейсы
-
-См. TESTCASES.md — секция "Тест-кейсы API"
-
-## Линтер
-
-```bash
-ruff check tests/task_2_1_api/
 ```

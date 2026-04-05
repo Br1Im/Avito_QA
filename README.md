@@ -1,56 +1,38 @@
-# Avito QA Internship - Тестовый набор
+# Avito Internship — Задание 2
 
-## Структура проекта
+Набор тестов для API и UI, всё что нужно для проверки.
 
-```
-.
-├── task_2_1_api/              # Задание 2.1: Тесты API
-│   ├── api_client.py
-│   ├── conftest.py
-│   ├── test_api_positive.py
-│   ├── test_api_negative.py
-│   ├── test_api_e2e.py
-│   ├── test_api_nonfunctional.py
-│   └── README.md
-│
-├── task_2_2_ui/              # Задание 2.2: UI тесты
-│   ├── conftest_ui.py
-│   ├── test_ui.py
-│   └── README.md
-│
-├── TESTCASES.md               # Все тест-кейсы
-├── BUGS.md                   # Баг-репорты
-├── pytest.ini                 # Конфигурация pytest
-├── pyproject.toml            # Конфигурация ruff
-└── README.md                 # Этот файл
-```
+## Что внутри
 
-## Быстрый старт
+- **task_2_1_api/** — тесты API (позитивные, негативные, e2e, плюс нефункциональные)
+- **task_2_2_ui/** — UI-тесты через Playwright
+- **TESTCASES.md** — все тест-кейсы
+- **BUGS.md** — найденные баги
 
-### Установка зависимостей
+## Как запустить
+
+Сначала зависимости:
 
 ```bash
 pip install -r requirements.txt
 playwright install chromium
 ```
 
-## Задание 2.1: API тесты
-
-См. [task_2_1_api/README.md](task_2_1_api/README.md)
+### API тесты
 
 ```bash
 pytest task_2_1_api/ -v
 ```
 
-## Задание 2.2: UI тесты
-
-См. [task_2_2_ui/README.md](task_2_2_ui/README.md)
+### UI тесты
 
 ```bash
 pytest task_2_2_ui/ -v
 ```
 
-## Allure отчёты
+## Allure
+
+Можно посмотреть отчёты:
 
 ```bash
 # API
@@ -63,6 +45,8 @@ allure serve task_2_2_ui/allure-results
 ```
 
 ## Линтер
+
+Перед отправкой проверял через ruff:
 
 ```bash
 ruff check task_2_1_api/
