@@ -1,252 +1,316 @@
-"""UI тесты для платформы модерации Авито."""
+"""UI тесты для платформы модерации объявлений."""
 
-import requests
-import allure
 import pytest
 
 
-UI_BASE_URL = "https://qa-internship.avito.com"
+BASE_URL = "https://cerulean-praline-8e5aa6.netlify.app"
 
 
-def _check_page_exists(page, url):
-    """Проверяет что страница доступна (возвращает HTML, не JSON ошибку)."""
-    page.goto(url)
-    page.wait_for_timeout(2000)
-    html = page.content()
-    # Если сервер вернёт JSON ошибку вместо HTML — страница недоступна
-    if '"message"' in html and '"code"' in html:
-        return False
-    return True
+def _get_prices(page, limit=10):
+    """Извлечь цены из карточек через JS (избегаем проблем с кодировкой)."""
+    return page.evaluate(
+        """(limit) => {
+            const elements = document.querySelectorAll('[class*="__price_"]');
+            const prices = [];
+            elements.forEach((el, i) => {
+                if (i >= limit) return;
+                const digits = el.textContent.replace(/[^\\d]/g, "");
+                if (digits) prices.push(parseInt(digits, 10));
+            });
+            return prices;
+        }""",
+        limit,
+    )
 
 
-@allure.title("Десктоп: Фильтр по цене")
-@pytest.mark.desktop
-def test_price_range_filter(page):
-    page.goto(f"{UI_BASE_URL}/list")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /list недоступна на сервере")
+class TestPriceFilter:
+    """TC-01. Фильтр Диапазон цен."""
 
-    min_input = page.locator('input[placeholder*="от"]').first
-    max_input = page.locator('input[placeholder*="до"]').first
+    @pytest.mark.desktop
+    def test_price_filter_valid_range(self, page):
+        """1.1 Позитивный сценарий - валидный диапазон."""
+        page.goto(BASE_URL + "?minPrice=1000&maxPrice=50000")
+        page.wait_for_timeout(3000)
 
-    assert min_input.count() > 0, "Не нашёл поле мин. цены"
-    assert max_input.count() > 0, "Не нашёл поле макс. цены"
+        prices = _get_prices(page)
+        assert len(prices) > 0, "Не найдено ни одной карточки с ценой"
 
-    min_input.fill("1000")
-    max_input.fill("50000")
+        for price in prices:
+            assert 1000 <= price <= 50000, f"Цена {price} вне диапазона 1000-50000"
 
-    page.wait_for_timeout(500)
+    @pytest.mark.desktop
+    def test_price_filter_min_greater_than_max(self, page):
+        """1.4 Негативный сценарий - мин больше макс."""
+        page.goto(BASE_URL + "?minPrice=5000&maxPrice=1000")
+        page.wait_for_timeout(3000)
 
-    price_cells = page.locator('[data-testid="price"], .price, [class*="price"]').all()
-    for cell in price_cells:
-        price_text = cell.text_content()
-        if price_text:
-            digits = "".join(filter(str.isdigit, price_text.split("-")[0]))
-            if digits:
-                price = int(digits)
-                assert 1000 <= price <= 50000, f"Цена {price} вне диапазона"
+        price_from = page.locator('[class*="priceRange"] input').first
+        price_to = page.locator('[class*="priceRange"] input').nth(1)
+
+        from_val = price_from.input_value() or ""
+        to_val = price_to.input_value() or ""
+
+        assert from_val != "5000" or to_val != "1000", "Некорректные параметры применены без валидации"
 
 
-@allure.title("Десктоп: Сортировка по цене (возрастание)")
-@pytest.mark.desktop
-def test_sort_by_price_asc(page):
-    page.goto(f"{UI_BASE_URL}/list")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /list недоступна на сервере")
+class TestSortByPrice:
+    """TC-02. Сортировка По цене."""
 
-    sort_button = page.locator('select[name*="sort"], [data-testid="sort"], [class*="sort"]').first
-    if sort_button.count() == 0:
-        pytest.skip("Контрол сортировки не найден на странице")
+    @pytest.mark.desktop
+    def test_sort_price_ascending(self, page):
+        """Сортировка по возрастанию."""
+        page.goto(BASE_URL)
+        page.wait_for_timeout(1000)
 
-    sort_button.select_option("price_asc")
-    page.wait_for_timeout(1000)
+        page.locator("select").nth(0).select_option("price")
+        page.locator("select").nth(1).select_option("asc")
+        page.wait_for_timeout(1000)
 
-    price_cells = page.locator('[data-testid="price"], .price, [class*="price"]').all()
-    prices = []
-    for cell in price_cells[:10]:
-        price_text = cell.text_content()
-        if price_text:
-            digits = "".join(filter(str.isdigit, price_text.split("-")[0]))
-            if digits:
-                prices.append(int(digits))
-
-    if len(prices) >= 2:
+        prices = _get_prices(page, 7)
+        assert len(prices) >= 2, "Недостаточно карточек для проверки сортировки"
         assert prices == sorted(prices), f"Цены не по возрастанию: {prices}"
 
+    @pytest.mark.desktop
+    def test_sort_price_descending(self, page):
+        """Сортировка по убыванию."""
+        page.goto(BASE_URL)
+        page.wait_for_timeout(1000)
 
-@allure.title("Десктоп: Сортировка по цене (убывание)")
-@pytest.mark.desktop
-def test_sort_by_price_desc(page):
-    page.goto(f"{UI_BASE_URL}/list")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /list недоступна на сервере")
+        page.locator("select").nth(0).select_option("price")
+        page.locator("select").nth(1).select_option("desc")
+        page.wait_for_timeout(1000)
 
-    sort_button = page.locator('select[name*="sort"], [data-testid="sort"], [class*="sort"]').first
-    if sort_button.count() == 0:
-        pytest.skip("Контрол сортировки не найден на странице")
-
-    sort_button.select_option("price_desc")
-    page.wait_for_timeout(1000)
-
-    price_cells = page.locator('[data-testid="price"], .price, [class*="price"]').all()
-    prices = []
-    for cell in price_cells[:10]:
-        price_text = cell.text_content()
-        if price_text:
-            digits = "".join(filter(str.isdigit, price_text.split("-")[0]))
-            if digits:
-                prices.append(int(digits))
-
-    if len(prices) >= 2:
+        prices = _get_prices(page, 7)
+        assert len(prices) >= 2, "Недостаточно карточек для проверки сортировки"
         assert prices == sorted(prices, reverse=True), f"Цены не по убыванию: {prices}"
 
 
-@allure.title("Десктоп: Фильтр по категории")
-@pytest.mark.desktop
-def test_category_filter(page):
-    page.goto(f"{UI_BASE_URL}/list")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /list недоступна на сервере")
+class TestCategoryFilter:
+    """TC-03. Фильтр Категория."""
 
-    category_dropdown = page.locator('select[name*="category"], [data-testid="category"], [class*="category"]').first
-    if category_dropdown.count() == 0:
-        pytest.skip("Выпадающий список категории не найден")
+    @pytest.mark.desktop
+    def test_category_filter(self, page):
+        """Фильтр по категории."""
+        page.goto(BASE_URL)
+        page.wait_for_timeout(1000)
 
-    options = category_dropdown.locator("option").all()
-    if len(options) > 1:
-        selected_value = options[1].get_attribute("value") or options[1].text_content()
-        category_dropdown.select_option(selected_value)
+        category_select = page.locator("select").nth(2)
+
+        options = category_select.locator("option").all()
+        found = False
+        for opt in options:
+            text = opt.inner_text()
+            if "Электроника" in text:
+                value = opt.get_attribute("value")
+                category_select.select_option(value)
+                found = True
+                break
+
+        assert found, "Категория Электроника не найдена"
+        page.wait_for_timeout(1000)
+
+        categories = page.locator('[class*="__category_"]').all()
+        for cat in categories[:10]:
+            assert "Электроника" in cat.inner_text(), (
+                f"Карточка имеет категорию: {cat.inner_text()}, ожидалась Электроника"
+            )
+
+    @pytest.mark.desktop
+    def test_category_filter_reset(self, page):
+        """Сброс фильтра категории."""
+        page.goto(BASE_URL)
+        page.wait_for_timeout(1000)
+
+        category_select = page.locator("select").nth(2)
+
+        # Выбрать категорию
+        options = category_select.locator("option").all()
+        for opt in options:
+            text = opt.inner_text()
+            if "Электроника" in text:
+                category_select.select_option(opt.get_attribute("value"))
+                break
+        page.wait_for_timeout(1000)
+
+        # Сбросить на "Все категории"
+        category_select.select_option("")
+        page.wait_for_timeout(1000)
+
+        # Проверка: выбрано "Все категории"
+        selected = category_select.input_value()
+        assert selected == "", f"Категория не сброшена, текущее значение: {selected}"
+
+
+class TestUrgentToggle:
+    """TC-04. Тоггл Только срочные."""
+
+    @pytest.mark.desktop
+    def test_urgent_toggle_on(self, page):
+        """Включить тоггл."""
+        page.goto(BASE_URL)
+        page.wait_for_timeout(1000)
+
+        toggle = page.locator('[class*="urgentToggle"]').first
+        toggle.click()
+        page.wait_for_timeout(1000)
+
+        checkbox = page.locator('input[type="checkbox"][class*="urgent"]')
+        assert checkbox.is_checked(), "Тоггл не включился"
+
+    @pytest.mark.desktop
+    def test_urgent_toggle_off(self, page):
+        """Выключить тоггл."""
+        page.goto(BASE_URL)
+        page.wait_for_timeout(1000)
+
+        toggle = page.locator('[class*="urgentToggle"]').first
+        toggle.click()
         page.wait_for_timeout(500)
-        selected = category_dropdown.input_value()
-        assert selected == selected_value
+        toggle.click()
+        page.wait_for_timeout(500)
+
+        checkbox = page.locator('input[type="checkbox"][class*="urgent"]')
+        assert not checkbox.is_checked(), "Тоггл не выключился"
 
 
-@allure.title("Десктоп: Тогл Только срочные")
-@pytest.mark.desktop
-def test_urgent_toggle(page):
-    page.goto(f"{UI_BASE_URL}/list")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /list недоступна на сервере")
+class TestStatsTimer:
+    """TC-05. Управление таймером на странице статистики."""
 
-    urgent_toggle = page.locator('input[type="checkbox"][name*="urgent"], [data-testid="urgent"], [class*="urgent"]').first
-    if urgent_toggle.count() == 0:
-        pytest.skip("Тогл срочных не найден")
+    @pytest.mark.desktop
+    def test_refresh_button(self, stats_page):
+        """Кнопка Обновить."""
+        stats_page.locator('[aria-label="Обновить сейчас"]').click()
+        stats_page.wait_for_timeout(1000)
 
-    is_checked_before = urgent_toggle.is_checked()
-    urgent_toggle.click()
-    page.wait_for_timeout(500)
-    is_checked_after = urgent_toggle.is_checked()
-    assert is_checked_before != is_checked_after, "Тогл не изменил состояние"
+        assert "/stats" in stats_page.url, "Не остались на странице статистики"
+
+    @pytest.mark.desktop
+    def test_stop_timer(self, stats_page):
+        """Кнопка Остановить."""
+        stop_btn = stats_page.locator('[aria-label="Отключить автообновление"]')
+        stop_btn.click()
+        stats_page.wait_for_timeout(1000)
+
+        start_btn = stats_page.locator('[aria-label="Включить автообновление"]')
+        assert start_btn.count() > 0, "Кнопка не изменилась на Включить"
+
+    @pytest.mark.desktop
+    def test_start_timer(self, stats_page):
+        """Кнопка Запустить."""
+        # Сначала останавливаем
+        stop_btn = stats_page.locator('[aria-label="Отключить автообновление"]')
+        if stop_btn.count() > 0:
+            stop_btn.click()
+            stats_page.wait_for_timeout(1000)
+
+        # Проверяем что появилась кнопка "Включить"
+        start_btn = stats_page.locator('[aria-label="Включить автообновление"]')
+        assert start_btn.count() > 0, "Кнопка Включить не появилась"
+
+        # Включаем таймер
+        start_btn.click()
+        stats_page.wait_for_timeout(3000)
+
+        # Проверяем что кнопка «Включить» исчезла или появилась «Отключить»
+        start_still_visible = stats_page.locator('[aria-label="Включить автообновление"]').count() > 0
+        stop_visible = stats_page.locator('[aria-label="Отключить автообновление"]').count() > 0
+
+        # После запуска кнопка "Включить" должна исчезнуть или "Отключить" появиться
+        # Если ни одно из условий не выполнено — таймер не запустился
+        assert stop_visible or not start_still_visible, (
+            "Кнопка не изменилась после клика: ни 'Отключить' не появилась, ни 'Включить' не исчезла"
+        )
 
 
-@allure.title("Десктоп: Кнопка Обновить на странице статистики")
-@pytest.mark.desktop
-def test_stats_refresh_button(page):
-    page.goto(f"{UI_BASE_URL}/stats")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /stats недоступна на сервере")
+class TestThemeMobile:
+    """TC-06. Переключение темы на мобильном."""
 
-    refresh_button = page.locator('button:has-text("Обновить"), [data-testid="refresh"]').first
-    if refresh_button.count() == 0:
-        pytest.skip("Кнопка Обновить не найдена")
+    @pytest.mark.mobile
+    def test_theme_toggle_mobile(self, mobile_page):
+        """Переключение темы."""
+        mobile_page.goto(BASE_URL)
+        mobile_page.wait_for_timeout(1000)
 
-    refresh_button.click()
+        html = mobile_page.locator("html")
+        theme_before = html.get_attribute("data-theme") or "light"
+
+        theme_btn = mobile_page.locator('[class*="themeToggle"]').first
+        theme_btn.click()
+        mobile_page.wait_for_timeout(500)
+
+        theme_after = html.get_attribute("data-theme")
+        assert theme_before != theme_after, "Тема не изменилась"
+
+    @pytest.mark.mobile
+    def test_theme_toggle_back(self, mobile_page):
+        """Переключение темы обратно."""
+        mobile_page.goto(BASE_URL)
+        mobile_page.wait_for_timeout(1000)
+
+        theme_btn = mobile_page.locator('[class*="themeToggle"]').first
+
+        theme_btn.click()
+        mobile_page.wait_for_timeout(500)
+
+        theme_btn.click()
+        mobile_page.wait_for_timeout(500)
+
+        theme_after = mobile_page.locator("html").get_attribute("data-theme")
+        assert theme_after == "light", f"Тема не вернулась в light: {theme_after}"
+
+    @pytest.mark.mobile
+    def test_theme_persistence(self, mobile_page):
+        """Сохранение темы после перезагрузки."""
+        mobile_page.goto(BASE_URL)
+        mobile_page.wait_for_timeout(1000)
+
+        theme_btn = mobile_page.locator('[class*="themeToggle"]').first
+        theme_btn.click()
+        mobile_page.wait_for_timeout(500)
+
+        theme_after_click = mobile_page.locator("html").get_attribute("data-theme")
+
+        mobile_page.reload()
+        mobile_page.wait_for_timeout(1000)
+
+        theme_after_reload = mobile_page.locator("html").get_attribute("data-theme")
+        assert theme_after_click == theme_after_reload, "Тема не сохранилась после перезагрузки"
+
+
+@pytest.fixture
+def mobile_page(browser):
+    """Мобильная страница."""
+    context = browser.new_context(viewport={"width": 375, "height": 667})
+    page = context.new_page()
+    yield page
+    context.close()
+
+
+@pytest.fixture
+def stats_page(page):
+    """Страница статистики - переход по клику."""
+    page.goto(BASE_URL)
     page.wait_for_timeout(1000)
-    assert page.url.endswith("/stats")
-
-
-@allure.title("Десктоп: Кнопка Остановить на странице статистики")
-@pytest.mark.desktop
-def test_stats_stop_timer(page):
-    page.goto(f"{UI_BASE_URL}/stats")
+    page.locator('a:has-text("Статистика")').click()
     page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /stats недоступна на сервере")
-
-    stop_button = page.locator('button:has-text("Остановить"), [data-testid="stop"]').first
-    if stop_button.count() == 0:
-        pytest.skip("Кнопка Остановить не найдена")
-
-    stop_button.click()
-    page.wait_for_timeout(500)
-
-    start_button = page.locator('button:has-text("Запустить")').first
-    if start_button.count() > 0:
-        pass  # Остановка сработала, появилась кнопка запуска
+    return page
 
 
-@allure.title("Десктоп: Кнопка Запустить на странице статистики")
-@pytest.mark.desktop
-def test_stats_start_timer(page):
-    page.goto(f"{UI_BASE_URL}/stats")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /stats недоступна на сервере")
+class TestThemeDesktop:
+    """TC-18. Переключение темы на десктопе."""
 
-    start_button = page.locator('button:has-text("Запустить"), [data-testid="start"]').first
-    if start_button.count() == 0:
-        pytest.skip("Кнопка Запустить не найдена")
+    @pytest.mark.desktop
+    def test_theme_toggle_desktop(self, page):
+        """Переключение темы на десктопе."""
+        page.goto(BASE_URL)
+        page.wait_for_timeout(1000)
 
-    start_button.click()
-    page.wait_for_timeout(500)
+        html = page.locator("html")
+        theme_before = html.get_attribute("data-theme") or "light"
 
-    stop_button = page.locator('button:has-text("Остановить")').first
-    if stop_button.count() > 0:
-        pass  # Запуск сработал, появилась кнопка остановки
+        theme_btn = page.locator('[class*="themeToggle"]').first
+        theme_btn.click()
+        page.wait_for_timeout(500)
 
-
-@allure.title("Мобильный: Переключение темы")
-@pytest.mark.mobile
-def test_mobile_theme_toggle(page):
-    page.set_viewport_size({"width": 375, "height": 667})
-    page.goto(f"{UI_BASE_URL}/list")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /list недоступна на сервере")
-
-    theme_toggle = page.locator('button:has-text("Тема"), [data-testid="theme"], [class*="theme"]').first
-    if theme_toggle.count() == 0:
-        pytest.skip("Переключатель темы не найден")
-
-    html_el = page.locator("html")
-    theme_before = html_el.get_attribute("data-theme") or html_el.get_attribute("class") or ""
-
-    theme_toggle.click()
-    page.wait_for_timeout(300)
-
-    theme_after = html_el.get_attribute("data-theme") or html_el.get_attribute("class") or ""
-    assert theme_before != theme_after, "Тема не изменилась"
-
-
-@allure.title("Десктоп: Страница карточки объявления")
-@pytest.mark.desktop
-def test_item_moderation_page(page):
-    page.goto(f"{UI_BASE_URL}/list")
-    page.wait_for_timeout(2000)
-    html = page.content()
-    if '"route' in html and 'not found' in html:
-        pytest.skip("Страница /list недоступна на сервере")
-
-    first_item = page.locator('[data-testid="item"], .item-card, [class*="item"]').first
-    if first_item.count() == 0:
-        pytest.skip("Карточки объявлений не найдены на странице")
-
-    first_item.click()
-    page.wait_for_timeout(1000)
-
-    assert page.url.startswith(f"{UI_BASE_URL}/item/"), f"URL не ведёт на /item/: {page.url}"
+        theme_after = html.get_attribute("data-theme")
+        assert theme_before != theme_after, "Тема не изменилась"

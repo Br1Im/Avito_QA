@@ -1,25 +1,15 @@
-Задание 2.2 - UI тесты
+# UI тесты — Задание 2.2
 
-## Файлы
-
-- `conftest_ui.py` - фикстуры Playwright, настройки viewport
-- `test_ui.py` - UI тесты: фильтры, сортировка, тема, статистика
-
-## Запуск
+## Быстрый запуск
 
 ```bash
+pip install -r requirements.txt
+playwright install chromium
 pytest task_2_2_ui/ -v
 ```
 
-По категориям:
-```bash
-pytest task_2_2_ui/ -m desktop -v
-pytest task_2_2_ui/ -m mobile -v
-```
+## Результат
 
-## Allure
+15 тестов (14 проходят + 1 падает из-за бага приложения).
 
-```bash
-pytest task_2_2_ui/ --alluredir=task_2_2_ui/allure-results
-allure serve task_2_2_ui/allure-results
-```
+Подробнее: [BUGS.md](BUGS.md)
