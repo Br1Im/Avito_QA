@@ -1,53 +1,55 @@
-# Avito Internship - Задание 2
+# Avito QA
 
-Набор тестов для API и UI, всё что нужно для проверки.
+QA test task - automated tests for Avito web application.
 
-## Что внутри
+## Tech Stack
 
-- **task_2_1_api/** - тесты API (позитивные, негативные, e2e, плюс нефункциональные)
-- **task_2_2_ui/** - UI-тесты через Playwright
-- **TESTCASES.md** - все тест-кейсы
-- **BUGS.md** - найденные баги
+- **Python**
+- **Playwright**
+- **pytest**
 
-## Как запустить
+## Features
 
-Сначала зависимости:
+- Automated testing
+- API tests
+- UI tests
+- Test reports
+
+## Getting Started
+
+### Prerequisites
+
+- [Python](https://www.python.org/) (3.10+)
+
+### Installation
 
 ```bash
+git clone https://github.com/Br1Im/Avito_QA.git
+cd Avito_QA
 pip install -r requirements.txt
-playwright install chromium
+pip install -e .
 ```
 
-### API тесты
+### Running
 
 ```bash
-pytest task_2_1_api/ -v
+# See project documentation for run instructions
 ```
 
-### UI тесты
+## Project Structure
 
-```bash
-pytest task_2_2_ui/ -v
+```
+Avito_QA/
+  task_1_bugs/
+  task_2_1_api/
+  task_2_2_ui/
+  README.md
+  TESTCASES.md
+  pyproject.toml
+  pytest.ini
+  requirements.txt
 ```
 
-## Allure
+## Author
 
-Можно посмотреть отчёты:
-
-```bash
-# API
-pytest task_2_1_api/ --alluredir=task_2_1_api/allure-results
-allure serve task_2_1_api/allure-results
-
-# UI
-pytest task_2_2_ui/ --alluredir=task_2_2_ui/allure-results
-allure serve task_2_2_ui/allure-results
-```
-
-## Линтер
-
-Перед отправкой проверял через ruff:
-
-```bash
-ruff check task_2_1_api/
-```
+**Br1Im** - [GitHub Profile](https://github.com/Br1Im)
